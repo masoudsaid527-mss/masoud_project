@@ -9,14 +9,13 @@ DEBUG = False
 # Set ALLOWED_HOSTS to your domain
 # Use Render-provided hostname or default to localhost
 ALLOWED_HOSTS = [
-    os.environ.get ('RENDER_EXTERNAL_HOSTNAME', 'localhost')
+    "masoud-project-64gt.onrender.com",
 ]
 
 # Recommended for CSRF protection (e.g. for forms)
 CSRF_TRUSTED_ORIGINS = [
-    'https://' + os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'localhost')
+    "https://my-project-1-re1u.onrender.com",
 ]
-
 # Secret key must be set in environment variable
 SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-default')
 
@@ -48,11 +47,9 @@ DATABASES = {
 }
 
 # CORS for React frontend (update to your actual frontend URL)
-CORS_ALLOWED_ORIGINS = [
-    #"https://my-project-1-re1u.onrender.com",  # ✅ Replace with your frontend URL
-    # "http://localhost:3000", # optional for local dev
+CCORS_ALLOWED_ORIGINS = [
+    "https://my-project-1-re1u.onrender.com",
 ]
-
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
