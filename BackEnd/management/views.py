@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import DataError, IntegrityError, transaction
 from django.db.models import Exists, OuterRef
+from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -62,8 +63,14 @@ def react_app(request):
 @api_view(["GET"])
 @ensure_csrf_cookie
 def csrf_token(request):
+    token = get_token(request)
     return Response(
-        {"message": "CSRF cookie set", "backend": "management", "register_patch": "2026-02-23"},
+        {
+            "message": "CSRF cookie set",
+            "backend": "management",
+            "register_patch": "2026-02-23",
+            "csrfToken": token,
+        },
         status=status.HTTP_200_OK,
     )
 
