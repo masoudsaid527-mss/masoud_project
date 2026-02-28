@@ -9,10 +9,6 @@ ALLOWED_HOSTS = [
     "masoud-project-64gt.onrender.com",
 ]
 
-INSTALLED_APPS = [
-    "corsheaders",
-]
-
 CSRF_TRUSTED_ORIGINS = [
     "https://my-project-1-re1u.onrender.com",
 ]
