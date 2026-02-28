@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'BackEnd.management',
     'drf_spectacular',
+    
 ]
 
 MIDDLEWARE = [
