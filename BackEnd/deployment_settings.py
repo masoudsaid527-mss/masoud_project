@@ -3,24 +3,25 @@ import dj_database_url
 from .settings import *
 from .settings import BASE_DIR
 
-# Set debug to False in production
 DEBUG = False
 
-# Set ALLOWED_HOSTS to your domain
-# Use Render-provided hostname or default to localhost
 ALLOWED_HOSTS = [
     "masoud-project-64gt.onrender.com",
 ]
 
-# Recommended for CSRF protection (e.g. for forms)
+INSTALLED_APPS = [
+    "corsheaders",
+]
+
 CSRF_TRUSTED_ORIGINS = [
     "https://my-project-1-re1u.onrender.com",
 ]
-# Secret key must be set in environment variable
+
 SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-default')
 
-# Middleware for production
+# ✅ Middleware order corrected
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # MUST BE FIRST
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -29,27 +30,28 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
 ]
 
-# Static files config for WhiteNoise
+# ✅ CORS correct spelling
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOWED_ORIGINS = [
+    "https://my-project-1-re1u.onrender.com",
+]
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Parse DATABASE_URL from Render (PostgreSQL)
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
         conn_max_age=600,
-        # ssl_require=True # important for Render PostgreSQL
     )
 }
 
-# CORS for React frontend (update to your actual frontend URL)
-CCORS_ALLOWED_ORIGINS = [
-    "https://my-project-1-re1u.onrender.com",
-]
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
