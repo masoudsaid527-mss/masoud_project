@@ -256,7 +256,8 @@ def student_bookings_api(request):
         booked_rooms = Booking.objects.filter(room=OuterRef("pk"))
         # Show only available rooms to students: once booked, room disappears from options.
         bookings = Booking.objects.filter(name=student).select_related("room").order_by("-id")
-        if bookings.exists():
+        has_booking = bookings.exists()
+        if has_booking:
             # Student is allowed only one booking at a time.
             hostels = Hostel.objects.none()
         else:
@@ -289,6 +290,7 @@ def student_bookings_api(request):
         return Response(
             {
                 "student": {"id": student.id, "name": student.name},
+                "can_book": not has_booking,
                 "hostels": hostels_payload,
                 "bookings": bookings_payload,
             },
@@ -299,27 +301,28 @@ def student_bookings_api(request):
     if not hostel_id:
         return Response({"message": "hostel_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if Booking.objects.filter(name=student).exists():
-        return Response({"message": "You already have a booking"}, status=status.HTTP_400_BAD_REQUEST)
-
     try:
         hostel_id = int(hostel_id)
     except (TypeError, ValueError):
         return Response({"message": "hostel_id must be a valid number"}, status=status.HTTP_400_BAD_REQUEST)
 
-    hostel = Hostel.objects.filter(id=hostel_id).first()
-    if not hostel:
-        return Response({"message": "Hostel not found"}, status=status.HTTP_404_NOT_FOUND)
-
-    if Booking.objects.filter(room=hostel, name=student).exists():
-        return Response({"message": "You already booked this room"}, status=status.HTTP_400_BAD_REQUEST)
-
-    # One room can only be occupied by one student at a time.
-    if Booking.objects.filter(room=hostel).exists():
-        return Response({"message": "This room is already booked"}, status=status.HTTP_400_BAD_REQUEST)
-
     try:
-        booking = Booking.objects.create(room=hostel, name=student)
+        with transaction.atomic():
+            if Booking.objects.select_for_update().filter(name=student).exists():
+                return Response({"message": "You already have a booking"}, status=status.HTTP_400_BAD_REQUEST)
+
+            hostel = Hostel.objects.select_for_update().filter(id=hostel_id).first()
+            if not hostel:
+                return Response({"message": "Hostel not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            if Booking.objects.select_for_update().filter(room=hostel, name=student).exists():
+                return Response({"message": "You already booked this room"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # One room can only be occupied by one student at a time.
+            if Booking.objects.select_for_update().filter(room=hostel).exists():
+                return Response({"message": "This room is already booked"}, status=status.HTTP_400_BAD_REQUEST)
+
+            booking = Booking.objects.create(room=hostel, name=student)
     except ValidationError as exc:
         return Response({"message": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     return Response(
@@ -371,11 +374,16 @@ def owner_rooms_api(request):
             status=status.HTTP_200_OK,
         )
 
-    room_name = str(request.data.get("room_name", "")).strip()
+    room_name = " ".join(str(request.data.get("room_name", "")).split())
     if not room_name:
         return Response({"message": "room_name is required"}, status=status.HTTP_400_BAD_REQUEST)
     if len(room_name) > 200:
         return Response({"message": "room_name must be 200 characters or fewer"}, status=status.HTTP_400_BAD_REQUEST)
+    if Hostel.objects.filter(hostel_owner=owner, name__iexact=room_name).exists():
+        return Response(
+            {"message": "You already posted a room with this name"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     room = Hostel.objects.create(name=room_name, hostel_owner=owner)
     return Response(
