@@ -10,9 +10,8 @@ https://docs.djangoproject.com/en/6.0/howto/deployment/wsgi/
 import os
 
 from django.core.wsgi import get_wsgi_application
+from .settings_selector import get_settings_module
 
-# os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'BackEnd.settings')
-setting_module = 'BackEnd.deployment_settings' if 'RENDER_EXTERNAL_HOSTNAME' in os.environ else 'BackEnd.settings'
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', setting_module)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", get_settings_module())
 
 application = get_wsgi_application()

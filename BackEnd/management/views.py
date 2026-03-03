@@ -14,6 +14,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Administrator, Booking, Hostel, Hostel_owner, Registers, Role, Student
 from .serializer import (
@@ -49,6 +51,51 @@ def _effective_role_for_user(user):
     if Student.objects.filter(user=user).exists():
         return "student"
     return ""
+
+
+def _ensure_student_profile(user):
+    student = Student.objects.filter(user=user).first()
+    if student:
+        return student
+
+    full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+    return Student.objects.create(
+        user=user,
+        name=full_name[:30],
+        age=18,
+        address="Not provided",
+        duration=1,
+        gender="Not set",
+    )
+
+
+def _ensure_owner_profile(user):
+    owner = Hostel_owner.objects.filter(user=user).first()
+    if owner:
+        return owner
+
+    full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+    return Hostel_owner.objects.create(
+        user=user,
+        name=full_name,
+        address="Not provided",
+        phone="Not provided",
+        location="Not provided",
+    )
+
+
+def _resolved_user(request):
+    if request.user.is_authenticated:
+        return request.user
+    try:
+        auth_result = JWTAuthentication().authenticate(request)
+    except Exception:
+        auth_result = None
+    if auth_result:
+        user, _ = auth_result
+        request.user = user
+        return user
+    return None
 
 
 def home(request):
@@ -213,17 +260,18 @@ manage_Registers = generic_api(Registers, RegistersSerializer)
 
 @api_view(["GET"])
 def current_user(request):
-    if not request.user.is_authenticated:
+    user = _resolved_user(request)
+    if not user:
         return Response({"message": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
 
-    role = _effective_role_for_user(request.user)
+    role = _effective_role_for_user(user)
     return Response(
         {
-            "user_id": request.user.id,
-            "username": request.user.username,
-            "email": request.user.email,
-            "first_name": request.user.first_name,
-            "last_name": request.user.last_name,
+            "user_id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
             "role": role,
         },
         status=status.HTTP_200_OK,
@@ -232,25 +280,26 @@ def current_user(request):
 
 @api_view(["POST"])
 def logout_user(request):
-    if not request.user.is_authenticated:
+    user = _resolved_user(request)
+    if not user:
         return Response({"message": "Already logged out"}, status=status.HTTP_200_OK)
 
-    logout(request)
+    if request.user.is_authenticated:
+        logout(request)
     return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET", "POST"])
 def student_bookings_api(request):
-    if not request.user.is_authenticated:
+    user = _resolved_user(request)
+    if not user:
         return Response({"message": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
 
-    role = _effective_role_for_user(request.user)
+    role = _effective_role_for_user(user)
     if role != "student":
         return Response({"message": "Only students can access this endpoint"}, status=status.HTTP_403_FORBIDDEN)
 
-    student = Student.objects.filter(user=request.user).first()
-    if not student:
-        return Response({"message": "Student profile not found"}, status=status.HTTP_404_NOT_FOUND)
+    student = _ensure_student_profile(user)
 
     if request.method == "GET":
         booked_rooms = Booking.objects.filter(room=OuterRef("pk"))
@@ -341,16 +390,15 @@ def student_bookings_api(request):
 
 @api_view(["GET", "POST"])
 def owner_rooms_api(request):
-    if not request.user.is_authenticated:
+    user = _resolved_user(request)
+    if not user:
         return Response({"message": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
 
-    role = _effective_role_for_user(request.user)
+    role = _effective_role_for_user(user)
     if role != "hostel_owner":
         return Response({"message": "Only hostel owners can access this endpoint"}, status=status.HTTP_403_FORBIDDEN)
 
-    owner = Hostel_owner.objects.filter(user=request.user).first()
-    if not owner:
-        return Response({"message": "Hostel owner profile not found"}, status=status.HTTP_404_NOT_FOUND)
+    owner = _ensure_owner_profile(user)
 
     if request.method == "GET":
         rooms = Hostel.objects.filter(hostel_owner=owner).order_by("-id")
@@ -552,6 +600,7 @@ def login_user(request):
 
     login(request, user)
     role = _effective_role_for_user(user)
+    refresh = RefreshToken.for_user(user)
     return Response(
         {
             "message": "Login successful",
@@ -561,6 +610,8 @@ def login_user(request):
             "first_name": user.first_name,
             "last_name": user.last_name,
             "role": role,
+            "access_token": str(refresh.access_token),
+            "refresh_token": str(refresh),
         },
         status=status.HTTP_200_OK,
     )
